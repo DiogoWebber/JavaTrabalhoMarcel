@@ -26,10 +26,10 @@ import model.ResultadoBusca;
 import service.AlgoritmoBuscaFactory;
 import service.BuscaArquivoService;
 import strategy.BuscaTexto;
+import strategy.BuscasService;
 
 public class BuscaArquivosApp extends JFrame {
-
-    private JTextField txtDiretorio;
+    private JComboBox<String> cmbDiretorio;
     private JTextField txtPalavra;
     private JTextArea txtResultado;
     private JComboBox<String> cmbMetodo;
@@ -51,16 +51,17 @@ public class BuscaArquivosApp extends JFrame {
 
         // Painel superior
         JPanel painelTopo = new JPanel(new GridLayout(3, 2, 5, 5));
-        painelTopo.add(new JLabel("Diretório:"));
-        txtDiretorio = new JTextField("txt");
-        painelTopo.add(txtDiretorio);
+
+        painelTopo.add(new JLabel("Dataset:"));
+        cmbDiretorio = new JComboBox<>(new String[]{"Pequeno", "Grande"});
+        painelTopo.add(cmbDiretorio);
 
         painelTopo.add(new JLabel("Palavra a buscar:"));
         txtPalavra = new JTextField();
         painelTopo.add(txtPalavra);
 
         painelTopo.add(new JLabel("Método de busca:"));
-        cmbMetodo = new JComboBox<>(new String[]{"Sequencial", "Boyer-Moore"});
+        cmbMetodo = new JComboBox<>(new String[]{"Sequencial", "Boyer-Moore", "Paralelo", "Paralelo otimizado"});
         painelTopo.add(cmbMetodo);
 
         add(painelTopo, BorderLayout.NORTH);
@@ -91,8 +92,23 @@ public class BuscaArquivosApp extends JFrame {
         btnBuscar.addActionListener(e -> iniciarBusca());
     }
 
-    private void carregarNomes() {
-        File pasta = new File(txtDiretorio.getText());
+    private File getCaminhoDataset() {
+        String diretorio = (String) cmbDiretorio.getSelectedItem();
+        File pasta;
+
+        if ("Pequeno".equals(diretorio)) {
+            pasta = new File("txt/dataset_p");
+        }
+        else {
+            pasta = new File("txt/dataset_g");
+        }
+
+        return pasta;
+    }
+
+    private void carregarNomes() {        
+        File pasta = getCaminhoDataset();
+
         if (!pasta.exists() || !pasta.isDirectory()) {
             nomesDisponiveis = new TreeSet<>();
             return;
@@ -107,31 +123,32 @@ public class BuscaArquivosApp extends JFrame {
     private void inicializarAutocomplete() {
         sugestoesList = new JList<>();
         sugestoesList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-
+    
         scrollSugestoes = new JScrollPane(sugestoesList);
         scrollSugestoes.setBorder(BorderFactory.createLineBorder(java.awt.Color.GRAY));
-
+    
         popupSugestoes = new JPopupMenu();
         popupSugestoes.setLayout(new BorderLayout());
         popupSugestoes.add(scrollSugestoes, BorderLayout.CENTER);
-
+    
         // Document listener para digitação
         txtPalavra.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { atualizarSugestoes(); }
             public void removeUpdate(DocumentEvent e) { atualizarSugestoes(); }
             public void changedUpdate(DocumentEvent e) { atualizarSugestoes(); }
         });
-
+    
         // Clique na lista
         sugestoesList.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 1) {
                     txtPalavra.setText(sugestoesList.getSelectedValue());
                     popupSugestoes.setVisible(false);
+                    txtPalavra.requestFocusInWindow(); // força foco de volta
                 }
             }
         });
-
+    
         // Teclas do teclado
         txtPalavra.addKeyListener(new KeyAdapter() {
             public void keyPressed(KeyEvent evt) {
@@ -146,12 +163,13 @@ public class BuscaArquivosApp extends JFrame {
                     } else if (evt.getKeyCode() == KeyEvent.VK_ENTER) {
                         txtPalavra.setText(sugestoesList.getSelectedValue());
                         popupSugestoes.setVisible(false);
+                        txtPalavra.requestFocusInWindow(); // força foco de volta
                         evt.consume();
                     }
                 }
             }
         });
-    }
+    }    
 
     private void atualizarSugestoes() {
         String texto = txtPalavra.getText();
@@ -159,27 +177,29 @@ public class BuscaArquivosApp extends JFrame {
             popupSugestoes.setVisible(false);
             return;
         }
-
-        // Filtra apenas os nomes que começam com o texto digitado
+    
         List<String> filtrados = nomesDisponiveis.stream()
                 .filter(n -> n.toLowerCase().startsWith(texto.toLowerCase()))
                 .sorted()
                 .collect(Collectors.toList());
-
+    
         if (filtrados.isEmpty()) {
             popupSugestoes.setVisible(false);
             return;
         }
-
+    
         sugestoesList.setListData(filtrados.toArray(new String[0]));
         sugestoesList.setSelectedIndex(0);
-
+    
         popupSugestoes.setPopupSize(txtPalavra.getWidth(), Math.min(150, filtrados.size() * 20));
         popupSugestoes.show(txtPalavra, 0, txtPalavra.getHeight());
-    }
+    
+        // força o foco de volta pro txtPalavra depois que o popup aparece
+        SwingUtilities.invokeLater(() -> txtPalavra.requestFocusInWindow());
+    }    
 
     private void iniciarBusca() {
-        String caminho = txtDiretorio.getText();
+        System.gc();
         String palavra = txtPalavra.getText().trim();
         String metodo = (String) cmbMetodo.getSelectedItem();
         
@@ -188,19 +208,18 @@ public class BuscaArquivosApp extends JFrame {
             return;
         }
 
-        File pasta = new File(caminho);
+        File pasta = getCaminhoDataset();
         if (!pasta.exists() || !pasta.isDirectory()) {
             JOptionPane.showMessageDialog(this, "Diretório inválido!");
             return;
         }
 
-        BuscaTexto algoritmo = AlgoritmoBuscaFactory.criar(metodo);
-        BuscaArquivoService service = new BuscaArquivoService(algoritmo);
+        var service = new BuscasService();
 
         txtResultado.setText("Buscando \"" + palavra + "\" com " + metodo + "...\n\n");
 
         long inicio = System.currentTimeMillis();
-        List<ResultadoBusca> resultados = service.buscarEmDiretorio(pasta, palavra);
+        List<ResultadoBusca> resultados = service.buscar(pasta, palavra, metodo);
         long fim = System.currentTimeMillis();
 
         long tempoBusca = fim - inicio; 

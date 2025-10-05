@@ -2,7 +2,6 @@ package service;
 
 import java.io.*;
 import java.util.*;
-
 import model.ResultadoBusca;
 import strategy.BuscaTexto;
 
@@ -32,11 +31,9 @@ public class BuscaArquivoService {
                 try (BufferedReader reader = new BufferedReader(new FileReader(arquivo))) {
                     String linha;
                     while ((linha = reader.readLine()) != null) {
-                        String[] palavras = linha.split("\\s+");
-                        for (String palavra : palavras) {
-                            if (!palavra.isBlank()) {
-                                nomes.add(palavra.trim());
-                            }
+                        linha = linha.trim();
+                        if (!linha.isBlank()) {
+                            nomes.add(linha); // adiciona a linha inteira
                         }
                     }
                 } catch (IOException e) {
