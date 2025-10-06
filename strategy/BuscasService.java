@@ -144,7 +144,7 @@ public class BuscasService {
                         while (scanner.hasNextLine()) {
                             String linha = scanner.nextLine();
                             numeroLinha++;
-                            if (linha.toLowerCase().contains(termo.toLowerCase())) {
+                            if (linha.contains(termo)) {
                                 resultadosLocais.add(new ResultadoBusca(arquivo.getAbsolutePath(), numeroLinha, linha));
                             }
                         }
@@ -183,7 +183,7 @@ public class BuscasService {
         if (arquivos == null || arquivos.length == 0) return resultados;
 
         // Pré-processa o termo para evitar lowerCase repetido
-        final String termoLower = termo.toLowerCase();
+        final String termoFinal = termo;
 
         // Usa um pool fixo menor que o total de arquivos
         int numThreads = Math.min(Runtime.getRuntime().availableProcessors() * 2, arquivos.length);
@@ -200,7 +200,7 @@ public class BuscasService {
                     while ((linha = reader.readLine()) != null) {
                         numeroLinha++;
                         // Normaliza linha uma vez
-                        if (linha.toLowerCase().contains(termoLower)) {
+                        if (linha.contains(termoFinal)) {
                             resultadosLocais.add(new ResultadoBusca(arquivo.getName(), numeroLinha, linha));
                         }
                     }
